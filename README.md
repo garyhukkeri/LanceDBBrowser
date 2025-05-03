@@ -2,6 +2,21 @@
 
 A standalone Streamlit application for browsing and exploring LanceDB tables. This is a simplified fork of the DesignerDataHub project, focusing only on the LanceDB browser functionality.
 
+## Pushing to GitHub
+
+To push this repository to your own GitHub account:
+
+1. Create a new repository on GitHub named "LanceDBBrowser"
+2. Run the following commands:
+
+```bash
+# Add your GitHub repository as a remote
+git remote add origin https://github.com/YOUR_USERNAME/LanceDBBrowser.git
+
+# Push the code to your repository
+git push -u origin master
+```
+
 ## Features
 
 - Connect to local or remote LanceDB databases
