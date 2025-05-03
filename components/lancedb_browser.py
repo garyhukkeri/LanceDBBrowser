@@ -123,9 +123,9 @@ def display_table_browser():
         else:
             st.info("No tables available. Create a table to get started.")
             
-            # # Option to create a new table
-            # with st.expander("Create New Table"):
-            #     create_new_table()
+            # Option to create a new table
+            with st.expander("Create New Table"):
+                create_new_table()
     
     with col2:
         # Table viewer panel
