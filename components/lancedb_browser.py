@@ -206,40 +206,7 @@ def display_table_details(table_name):
                 limit = st.slider("Number of rows to preview", 5, 100, 10)
             with col2:
                 st.write("Actions:")
-                if st.button("Delete Selected", key="delete_btn"):
-                    if "selected_rows" in st.session_state and st.session_state.selected_rows:
-                        with st.spinner("Deleting selected rows..."):
-                            try:
-                                # Get indices of selected rows
-                                indices = sorted(list(st.session_state.selected_rows.keys()), key=int)
-                                
-                                # Delete rows using the proper LanceDB API
-                                # LanceDB doesn't have a delete_rows method, but it has a delete method
-                                # that takes a filter condition
-                                
-                                # Get the id values of the selected rows
-                                # The indices are now the row numbers in the preview dataframe
-                                id_values = [preview_df.iloc[int(idx)]['id'] for idx in indices if int(idx) < len(preview_df)]
-                                
-                                if id_values:
-                                    # Create a filter condition for the ids
-                                    filter_condition = f"id IN [{','.join(map(str, id_values))}]"
-                                    
-                                    # Delete the rows
-                                    table.delete(filter_condition)
-                                    st.success(f"Successfully deleted {len(indices)} row(s)")
-                                    
-                                    # Clear selection
-                                    st.session_state.selected_rows = {}
-                                    
-                                    # Rerun to update UI
-                                    st.rerun()
-                                else:
-                                    st.error("Failed to delete rows")
-                            except Exception as e:
-                                st.error(f"Error deleting rows: {str(e)}")
-                    else:
-                        st.warning("No rows selected. Please select rows to delete.")
+                # Delete button will be moved after loading preview_df
             
             # Get data preview
             with st.spinner("Loading data preview..."):
@@ -279,6 +246,42 @@ def display_table_details(table_name):
                         selected_indices[str(i)] = True
                 
                 st.session_state.selected_rows = selected_indices
+                
+                # Now add the delete button after preview_df is defined
+                if st.button("Delete Selected", key="delete_btn"):
+                    if "selected_rows" in st.session_state and st.session_state.selected_rows:
+                        with st.spinner("Deleting selected rows..."):
+                            try:
+                                # Get indices of selected rows
+                                indices = sorted(list(st.session_state.selected_rows.keys()), key=int)
+                                
+                                # Delete rows using the proper LanceDB API
+                                # LanceDB doesn't have a delete_rows method, but it has a delete method
+                                # that takes a filter condition
+                                
+                                # Get the id values of the selected rows
+                                # The indices are now the row numbers in the preview dataframe
+                                id_values = [preview_df.iloc[int(idx)]['id'] for idx in indices if int(idx) < len(preview_df)]
+                                
+                                if id_values:
+                                    # Create a filter condition for the ids
+                                    filter_condition = f"id IN [{','.join(map(str, id_values))}]"
+                                    
+                                    # Delete the rows
+                                    table.delete(filter_condition)
+                                    st.success(f"Successfully deleted {len(indices)} row(s)")
+                                    
+                                    # Clear selection
+                                    st.session_state.selected_rows = {}
+                                    
+                                    # Rerun to update UI
+                                    st.rerun()
+                                else:
+                                    st.error("Failed to delete rows")
+                            except Exception as e:
+                                st.error(f"Error deleting rows: {str(e)}")
+                    else:
+                        st.warning("No rows selected. Please select rows to delete.")
         
         # Schema tab
         with tab2:
