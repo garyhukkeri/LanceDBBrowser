@@ -4,134 +4,13 @@ import os
 import json
 from pathlib import Path
 
-# Mock LanceDB implementation for the browser interface
-class MockLanceDBTable:
-    """Mock implementation of a LanceDB table for UI demonstration purposes."""
-    
-    def __init__(self, name, schema=None):
-        self.name = name
-        self._schema = schema or [
-            {"name": "id", "type": "int32", "nullable": False},
-            {"name": "name", "type": "string", "nullable": True},
-            {"name": "embedding", "type": "float32[128]", "nullable": True}
-        ]
-        self._data = pd.DataFrame({
-            "id": [1, 2, 3, 4, 5],
-            "name": ["Sample 1", "Sample 2", "Sample 3", "Sample 4", "Sample 5"],
-            "embedding": ["[...]", "[...]", "[...]", "[...]", "[...]"]
-        })
-    
-    def to_pandas(self, limit=10):
-        """Return mock data as pandas DataFrame."""
-        return self._data.head(limit)
-    
-    def count_rows(self):
-        """Return mock row count."""
-        return len(self._data)
-    
-    @property
-    def schema(self):
-        """Return mock schema."""
-        class Field:
-            def __init__(self, name, type, nullable):
-                self.name = name
-                self.type = type
-                self.nullable = nullable
-        
-        # Convert 'type' field to avoid keyword collision
-        schema_fields = []
-        for field in self._schema:
-            field_copy = field.copy()
-            # No need to rename - we'll pass the arguments directly
-            schema_fields.append(Field(
-                name=field_copy["name"],
-                type=field_copy["type"],
-                nullable=field_copy["nullable"]
-            ))
-        
-        return schema_fields
-    
-    def search(self, query_str):
-        """Mock search function that returns the original data."""
-        return self
-        
-    def delete_rows(self, indices):
-        """Delete rows from the mock table by indices."""
-        if not indices:
-            return False
-            
-        # Convert to list if necessary
-        if not isinstance(indices, list):
-            indices = [indices]
-            
-        # Sort indices in descending order to avoid index shifting
-        indices = sorted(indices, reverse=True)
-        
-        # Remove rows
-        for idx in indices:
-            if 0 <= idx < len(self._data):
-                self._data = self._data.drop(self._data.index[idx])
-                
-        # Reset index
-        self._data = self._data.reset_index(drop=True)
-        return True
-        
+import lancedb
 
-class MockLanceDB:
-    """Mock implementation of LanceDB for UI demonstration purposes."""
-    
-    def __init__(self, uri):
-        self.uri = uri
-        self._tables = {
-            "users": MockLanceDBTable("users", [
-                {"name": "id", "type": "int32", "nullable": False},
-                {"name": "name", "type": "string", "nullable": True},
-                {"name": "age", "type": "int32", "nullable": True},
-                {"name": "email", "type": "string", "nullable": True},
-                {"name": "embedding", "type": "float32[128]", "nullable": True}
-            ]),
-            "products": MockLanceDBTable("products", [
-                {"name": "id", "type": "int32", "nullable": False},
-                {"name": "name", "type": "string", "nullable": True},
-                {"name": "price", "type": "float32", "nullable": True},
-                {"name": "category", "type": "string", "nullable": True},
-                {"name": "embedding", "type": "float32[128]", "nullable": True}
-            ]),
-            "transactions": MockLanceDBTable("transactions", [
-                {"name": "id", "type": "int32", "nullable": False},
-                {"name": "user_id", "type": "int32", "nullable": False},
-                {"name": "product_id", "type": "int32", "nullable": False},
-                {"name": "amount", "type": "float32", "nullable": False},
-                {"name": "timestamp", "type": "string", "nullable": False}
-            ])
-        }
-    
-    def table_names(self):
-        """Return list of mock table names."""
-        return list(self._tables.keys())
-    
-    def open_table(self, table_name):
-        """Return a mock table by name."""
-        if table_name in self._tables:
-            return self._tables[table_name]
-        raise ValueError(f"Table {table_name} not found")
-    
-    def create_table(self, table_name, data):
-        """Create a mock table."""
-        schema = []
-        for col in data.columns:
-            schema.append({
-                "name": col,
-                "type": "string",  # Default type
-                "nullable": True
-            })
-        self._tables[table_name] = MockLanceDBTable(table_name, schema)
-        return self._tables[table_name]
-
-# Mock connection function to replace lancedb.connect
+#  connection function to replace lancedb.connect
 def connect(uri):
     """Mock connect function that returns a MockLanceDB instance."""
-    return MockLanceDB(uri)
+    db = lancedb.connect(uri)
+    return db
 
 def lancedb_browser():
     """
@@ -152,8 +31,7 @@ def lancedb_browser():
         st.session_state.current_table = None
     
     # Connection panel
-    if not st.session_state.lancedb_connected:
-        st.subheader("LanceDB Connection")
+    with st.expander("LanceDB Connection", expanded=not st.session_state.lancedb_connected):
         connect_to_lancedb()
     
     # If connected, show table browser
@@ -164,96 +42,35 @@ def lancedb_browser():
 def connect_to_lancedb():
     """Handle connection to LanceDB database."""
     st.subheader("Connect to LanceDB")
-    
-    # LanceDB can connect to a local directory or URI
-    connection_type = st.radio(
-        "Connection Type",
-        ["Local Directory", "URI Connection"],
-        horizontal=True
+    # Local directory connection
+    db_path = st.text_input(
+        "Database Path",
+        value=".lancedb",
+        help="Path to the local LanceDB database directory"
     )
     
-    if connection_type == "Local Directory":
-        # Local directory connection
-        db_path = st.text_input(
-            "Database Path",
-            value="./lancedb_data",
-            help="Path to the local LanceDB database directory"
-        )
-        
-        if st.button("Connect to Local Database"):
-            try:
-                with st.spinner("Connecting to LanceDB..."):
-                    # Create directory if it doesn't exist
-                    os.makedirs(db_path, exist_ok=True)
-                    
-                    # Connect to the database using our mock function
-                    db = connect(db_path)
-                    
-                    # Store connection in session state
-                    st.session_state.lancedb_connection = db
-                    st.session_state.lancedb_connected = True
-                    
-                    # List available tables
-                    table_names = list_lancedb_tables(db)
-                    st.session_state.lancedb_tables = table_names
-                    
-                    st.success(f"Connected to LanceDB at {db_path}")
-                    if table_names:
-                        st.info(f"Found {len(table_names)} tables: {', '.join(table_names)}")
-                    else:
-                        st.info("No tables found in the database.")
-            except Exception as e:
-                st.error(f"Error connecting to LanceDB: {str(e)}")
-    else:
-        # URI connection (e.g., S3, etc.)
-        uri = st.text_input(
-            "Database URI",
-            placeholder="s3://bucket-name/path/to/db",
-            help="URI to the LanceDB database location"
-        )
-        
-        # Additional credentials for cloud storage
-        st.subheader("Connection Credentials")
-        col1, col2 = st.columns(2)
-        with col1:
-            region = st.text_input("Region", placeholder="us-east-1")
-            access_key = st.text_input("Access Key ID")
-        with col2:
-            secret_key = st.text_input("Secret Access Key", type="password")
-        
-        if st.button("Connect to Remote Database"):
-            if not uri:
-                st.error("Database URI is required")
-            else:
-                try:
-                    with st.spinner("Connecting to LanceDB..."):
-                        # Set AWS credentials if provided
-                        if access_key and secret_key:
-                            os.environ["AWS_ACCESS_KEY_ID"] = access_key
-                            os.environ["AWS_SECRET_ACCESS_KEY"] = secret_key
-                        
-                        if region:
-                            os.environ["AWS_REGION"] = region
-                        
-                        # Connect to the database using our mock function
-                        db = connect(uri)
-                        
-                        # Store connection in session state
-                        st.session_state.lancedb_connection = db
-                        st.session_state.lancedb_connected = True
-                        
-                        # List available tables
-                        table_names = list_lancedb_tables(db)
-                        st.session_state.lancedb_tables = table_names
-                        
-                        st.success(f"Connected to LanceDB at {uri}")
-                        if table_names:
-                            st.info(f"Found {len(table_names)} tables: {', '.join(table_names)}")
-                        else:
-                            st.info("No tables found in the database.")
-                except Exception as e:
-                    st.error(f"Error connecting to LanceDB: {str(e)}")
-
+    if st.button("Connect to Local Database"):
+        try:
+            with st.spinner("Connecting to LanceDB..."):
+                # Create directory if it doesn't exist
+                #os.makedirs(db_path, exist_ok=True)
+                
+                db = connect(db_path)
+                # Store connection in session state
+                st.session_state.lancedb_connection = db
+                st.session_state.lancedb_connected = True
+                
+                # List available tables
+                table_names = list_lancedb_tables(db)
+                st.session_state.lancedb_tables = table_names
+                
+                st.success(f"Connected to LanceDB at {db_path}")
+                if table_names:
+                    st.info(f"Found {len(table_names)} tables: {', '.join(table_names)}")
+                else:
+                    st.info("No tables found in the database.")
+        except Exception as e:
+            st.error(f"Error connecting to LanceDB: {str(e)}")
 
 def list_lancedb_tables(db):
     """
@@ -266,13 +83,17 @@ def list_lancedb_tables(db):
         List of table names
     """
     try:
-        return db.table_names()
+        tables = db.table_names()
+        st.session_state.lancedb_tables = tables
+        print(tables)
+        return tables
     except Exception as e:
         st.error(f"Error listing tables: {str(e)}")
         return []
 
 
 def display_table_browser():
+    db = st.session_state.lancedb_connection
     """Display the browser interface for LanceDB tables."""
     st.subheader("Browse Tables")
     
@@ -285,8 +106,7 @@ def display_table_browser():
         # Refresh button to update table list
         if st.button("Refresh Tables"):
             with st.spinner("Refreshing table list..."):
-                table_names = list_lancedb_tables(st.session_state.lancedb_connection)
-                st.session_state.lancedb_tables = table_names
+                table_names = list_lancedb_tables(db)
                 st.rerun()
         
         # Display table list
@@ -303,9 +123,9 @@ def display_table_browser():
         else:
             st.info("No tables available. Create a table to get started.")
             
-            # Option to create a new table
-            with st.expander("Create New Table"):
-                create_new_table()
+            # # Option to create a new table
+            # with st.expander("Create New Table"):
+            #     create_new_table()
     
     with col2:
         # Table viewer panel
@@ -366,7 +186,11 @@ def display_table_details(table_name):
     try:
         # Get table from connection
         db = st.session_state.lancedb_connection
-        table = db.open_table(table_name)
+        try:
+            table = db.open_table(table_name)
+        except Exception as e:
+            st.error(f"Error opening table: {str(e)}")
+            return
         
         # Display table information
         st.subheader(f"Table: {table_name}")
@@ -407,7 +231,7 @@ def display_table_details(table_name):
             
             # Get data preview
             with st.spinner("Loading data preview..."):
-                preview_df = table.to_pandas(limit=limit)
+                preview_df = table.to_pandas()
                 
                 # Initialize selected_rows if not present
                 if "selected_rows" not in st.session_state:
