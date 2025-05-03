@@ -213,8 +213,20 @@ def display_table_details(table_name):
                                 # Get indices of selected rows
                                 indices = sorted(list(st.session_state.selected_rows.keys()), key=int)
                                 
-                                # Delete rows
-                                if table.delete_rows(indices):
+                                # Delete rows using the proper LanceDB API
+                                # LanceDB doesn't have a delete_rows method, but it has a delete method
+                                # that takes a filter condition
+                                
+                                # Get the id values of the selected rows
+                                # The indices are now the row numbers in the preview dataframe
+                                id_values = [preview_df.iloc[int(idx)]['id'] for idx in indices if int(idx) < len(preview_df)]
+                                
+                                if id_values:
+                                    # Create a filter condition for the ids
+                                    filter_condition = f"id IN [{','.join(map(str, id_values))}]"
+                                    
+                                    # Delete the rows
+                                    table.delete(filter_condition)
                                     st.success(f"Successfully deleted {len(indices)} row(s)")
                                     
                                     # Clear selection
@@ -231,7 +243,8 @@ def display_table_details(table_name):
             
             # Get data preview
             with st.spinner("Loading data preview..."):
-                preview_df = table.to_pandas()
+                # Use the limit from the slider to limit the number of rows
+                preview_df = table.to_pandas().head(limit)
                 
                 # Initialize selected_rows if not present
                 if "selected_rows" not in st.session_state:
@@ -245,24 +258,27 @@ def display_table_details(table_name):
                 edited_df = preview_df.copy()
                 
                 # Display the dataframe with row selection
+                # Add a selection column to the dataframe
+                # Create a checkbox column for selection
+                edited_df = edited_df.copy()
+                edited_df.insert(0, "Select", False)
+                
                 selection = st.data_editor(
                     edited_df,
                     use_container_width=True,
-                    disabled=edited_df.columns.tolist(),  # Disable editing of all columns
+                    disabled=edited_df.columns.tolist()[1:],  # Disable editing of all columns except Select
                     hide_index=False,
-                    column_config={
-                        "_index": st.column_config.Column(
-                            "Select",
-                            help="Select rows to delete",
-                            required=True,
-                            width="small",
-                        )
-                    },
                     key="table_data_editor"
                 )
                 
                 # Store selection in session state
-                st.session_state.selected_rows = selection.get("edited_rows", {})
+                # Get the indices of rows where Select is True
+                selected_indices = {}
+                for i, row in enumerate(selection["Select"]):
+                    if row:
+                        selected_indices[str(i)] = True
+                
+                st.session_state.selected_rows = selected_indices
         
         # Schema tab
         with tab2:
