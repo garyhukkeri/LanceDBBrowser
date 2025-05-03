@@ -158,8 +158,27 @@ def create_new_table():
             else:
                 try:
                     with st.spinner(f"Creating table '{new_table_name}'..."):
-                        # Create an empty DataFrame with the specified columns
-                        sample_data = pd.DataFrame({col: [] for col in columns})
+                        # Create a DataFrame with sample data for the specified columns
+                        # Generate 5 rows of sample data
+                        sample_data = {}
+                        for col in columns:
+                            if col.lower() == 'id':
+                                # For id column, use sequential integers
+                                sample_data[col] = list(range(1, 6))
+                            elif 'embedding' in col.lower():
+                                # For embedding columns, use simple vectors
+                                sample_data[col] = [[0.1, 0.2, 0.3]] * 5
+                            elif any(type_hint in col.lower() for type_hint in ['int', 'num', 'count']):
+                                # For numeric columns, use random integers
+                                sample_data[col] = [i * 10 for i in range(1, 6)]
+                            elif any(type_hint in col.lower() for type_hint in ['float', 'decimal', 'price']):
+                                # For float columns, use decimals
+                                sample_data[col] = [i * 10.5 for i in range(1, 6)]
+                            else:
+                                # For other columns, use text
+                                sample_data[col] = [f"Sample {col} {i}" for i in range(1, 6)]
+                        
+                        sample_data = pd.DataFrame(sample_data)
                         
                         # Create the table
                         db = st.session_state.lancedb_connection
