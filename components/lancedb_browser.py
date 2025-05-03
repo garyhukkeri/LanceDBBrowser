@@ -265,7 +265,13 @@ def display_table_details(table_name):
                                 
                                 if id_values:
                                     # Create a filter condition for the ids
-                                    filter_condition = f"id IN [{','.join(map(str, id_values))}]"
+                                    # Use proper SQL syntax for the WHERE clause
+                                    if len(id_values) == 1:
+                                        # For a single value, use equality
+                                        filter_condition = f"id = {id_values[0]}"
+                                    else:
+                                        # For multiple values, use IN with parentheses
+                                        filter_condition = f"id IN ({','.join(map(str, id_values))})"
                                     
                                     # Delete the rows
                                     table.delete(filter_condition)
