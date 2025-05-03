@@ -152,7 +152,8 @@ def lancedb_browser():
         st.session_state.current_table = None
     
     # Connection panel
-    with st.expander("LanceDB Connection", expanded=not st.session_state.lancedb_connected):
+    if not st.session_state.lancedb_connected:
+        st.subheader("LanceDB Connection")
         connect_to_lancedb()
     
     # If connected, show table browser
@@ -212,9 +213,12 @@ def connect_to_lancedb():
         )
         
         # Additional credentials for cloud storage
-        with st.expander("Connection Credentials"):
+        st.subheader("Connection Credentials")
+        col1, col2 = st.columns(2)
+        with col1:
             region = st.text_input("Region", placeholder="us-east-1")
             access_key = st.text_input("Access Key ID")
+        with col2:
             secret_key = st.text_input("Secret Access Key", type="password")
         
         if st.button("Connect to Remote Database"):
