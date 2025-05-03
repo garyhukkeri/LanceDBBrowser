@@ -3,7 +3,6 @@ import pandas as pd
 import os
 import json
 from pathlib import Path
-
 import lancedb
 
 #  connection function to replace lancedb.connect
@@ -94,6 +93,10 @@ def list_lancedb_tables(db):
 
 def display_table_browser():
     db = st.session_state.lancedb_connection
+    # Option to create a new table
+    st.subheader("Create New Table")
+    with st.expander("Create Table"):
+        create_new_table()
     """Display the browser interface for LanceDB tables."""
     st.subheader("Browse Tables")
     
@@ -120,12 +123,7 @@ def display_table_browser():
             if selected_table != st.session_state.current_table:
                 st.session_state.current_table = selected_table
                 st.rerun()
-        else:
-            st.info("No tables available. Create a table to get started.")
-            
-            # Option to create a new table
-            with st.expander("Create New Table"):
-                create_new_table()
+        
     
     with col2:
         # Table viewer panel
