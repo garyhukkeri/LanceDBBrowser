@@ -1,137 +1,16 @@
 import streamlit as st
 import pandas as pd
 import os
+import lancedb
 import json
 from pathlib import Path
 
-# Mock LanceDB implementation for the browser interface
-class MockLanceDBTable:
-    """Mock implementation of a LanceDB table for UI demonstration purposes."""
-    
-    def __init__(self, name, schema=None):
-        self.name = name
-        self._schema = schema or [
-            {"name": "id", "type": "int32", "nullable": False},
-            {"name": "name", "type": "string", "nullable": True},
-            {"name": "embedding", "type": "float32[128]", "nullable": True}
-        ]
-        self._data = pd.DataFrame({
-            "id": [1, 2, 3, 4, 5],
-            "name": ["Sample 1", "Sample 2", "Sample 3", "Sample 4", "Sample 5"],
-            "embedding": ["[...]", "[...]", "[...]", "[...]", "[...]"]
-        })
-    
-    def to_pandas(self, limit=10):
-        """Return mock data as pandas DataFrame."""
-        return self._data.head(limit)
-    
-    def count_rows(self):
-        """Return mock row count."""
-        return len(self._data)
-    
-    @property
-    def schema(self):
-        """Return mock schema."""
-        class Field:
-            def __init__(self, name, type, nullable):
-                self.name = name
-                self.type = type
-                self.nullable = nullable
-        
-        # Convert 'type' field to avoid keyword collision
-        schema_fields = []
-        for field in self._schema:
-            field_copy = field.copy()
-            # No need to rename - we'll pass the arguments directly
-            schema_fields.append(Field(
-                name=field_copy["name"],
-                type=field_copy["type"],
-                nullable=field_copy["nullable"]
-            ))
-        
-        return schema_fields
-    
-    def search(self, query_str):
-        """Mock search function that returns the original data."""
-        return self
-        
-    def delete_rows(self, indices):
-        """Delete rows from the mock table by indices."""
-        if not indices:
-            return False
-            
-        # Convert to list if necessary
-        if not isinstance(indices, list):
-            indices = [indices]
-            
-        # Sort indices in descending order to avoid index shifting
-        indices = sorted(indices, reverse=True)
-        
-        # Remove rows
-        for idx in indices:
-            if 0 <= idx < len(self._data):
-                self._data = self._data.drop(self._data.index[idx])
-                
-        # Reset index
-        self._data = self._data.reset_index(drop=True)
-        return True
-        
 
-class MockLanceDB:
-    """Mock implementation of LanceDB for UI demonstration purposes."""
-    
-    def __init__(self, uri):
-        self.uri = uri
-        self._tables = {
-            "users": MockLanceDBTable("users", [
-                {"name": "id", "type": "int32", "nullable": False},
-                {"name": "name", "type": "string", "nullable": True},
-                {"name": "age", "type": "int32", "nullable": True},
-                {"name": "email", "type": "string", "nullable": True},
-                {"name": "embedding", "type": "float32[128]", "nullable": True}
-            ]),
-            "products": MockLanceDBTable("products", [
-                {"name": "id", "type": "int32", "nullable": False},
-                {"name": "name", "type": "string", "nullable": True},
-                {"name": "price", "type": "float32", "nullable": True},
-                {"name": "category", "type": "string", "nullable": True},
-                {"name": "embedding", "type": "float32[128]", "nullable": True}
-            ]),
-            "transactions": MockLanceDBTable("transactions", [
-                {"name": "id", "type": "int32", "nullable": False},
-                {"name": "user_id", "type": "int32", "nullable": False},
-                {"name": "product_id", "type": "int32", "nullable": False},
-                {"name": "amount", "type": "float32", "nullable": False},
-                {"name": "timestamp", "type": "string", "nullable": False}
-            ])
-        }
-    
-    def table_names(self):
-        """Return list of mock table names."""
-        return list(self._tables.keys())
-    
-    def open_table(self, table_name):
-        """Return a mock table by name."""
-        if table_name in self._tables:
-            return self._tables[table_name]
-        raise ValueError(f"Table {table_name} not found")
-    
-    def create_table(self, table_name, data):
-        """Create a mock table."""
-        schema = []
-        for col in data.columns:
-            schema.append({
-                "name": col,
-                "type": "string",  # Default type
-                "nullable": True
-            })
-        self._tables[table_name] = MockLanceDBTable(table_name, schema)
-        return self._tables[table_name]
-
-# Mock connection function to replace lancedb.connect
+# connection function to replace lancedb.connect
 def connect(uri):
-    """Mock connect function that returns a MockLanceDB instance."""
-    return MockLanceDB(uri)
+    """Connect function that returns a LanceDB instance."""
+    db = lancedb.connect(uri)
+    return db
 
 def lancedb_browser():
     """
@@ -407,7 +286,8 @@ def display_table_details(table_name):
             
             # Get data preview
             with st.spinner("Loading data preview..."):
-                preview_df = table.to_pandas(limit=limit)
+                p_df = table.to_pandas()
+                preview_df = p_df.head(limit)
                 
                 # Initialize selected_rows if not present
                 if "selected_rows" not in st.session_state:
