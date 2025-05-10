@@ -1,6 +1,6 @@
 import streamlit as st
 import pandas as pd
-from components.lancedb_browser import lancedb_browser
+from adapters.streamlit_adapter import StreamlitLanceDBAdapter
 
 # Set page configuration
 st.set_page_config(
@@ -18,8 +18,9 @@ if 'data' not in st.session_state:
 st.title("LanceDB Browser")
 st.caption("A mini workbench for browsing and exploring LanceDB tables")
 
-# Main application
-lancedb_browser()
+# Initialize and run the adapter
+adapter = StreamlitLanceDBAdapter()
+adapter.run_browser_interface()
 
 # If data has been loaded from a LanceDB query
 if st.session_state.data is not None:
