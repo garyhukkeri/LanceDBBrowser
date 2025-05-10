@@ -46,3 +46,6 @@ Thumbs.db
 .*
 lancedb_data/
 lancedb/
+
+test_run*
+.env

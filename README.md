@@ -38,10 +38,18 @@ streamlit run app.py
 ```
 
 ### Docker Usage
-
+1. Build and run with Docker Compose:
 ```bash
 # Start the container
 docker-compose up -d
+
+# Access the application at http://localhost:8501
+```
+1. Or run with Docker directly, providing the host database path:
+
+```bash
+docker build -t lancedb-browser .
+docker run -p 8501:8501 -e HOST_DB_PATH=/path/to/db -v /path/to/your/host/database:/path/to/db lancedb-browser
 
 # Access the application at http://localhost:8501
 ```
