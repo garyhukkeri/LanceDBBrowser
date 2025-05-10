@@ -43,4 +43,6 @@ ehthumbs.db
 Thumbs.db
 
 # LanceDB data
+.*
 lancedb_data/
+lancedb/

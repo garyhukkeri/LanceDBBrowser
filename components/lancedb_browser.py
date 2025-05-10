@@ -4,7 +4,7 @@ import os
 import lancedb
 import json
 from pathlib import Path
-
+import lancedb
 
 # connection function to replace lancedb.connect
 def connect(uri):
@@ -31,8 +31,7 @@ def lancedb_browser():
         st.session_state.current_table = None
     
     # Connection panel
-    if not st.session_state.lancedb_connected:
-        st.subheader("LanceDB Connection")
+    with st.expander("LanceDB Connection", expanded=not st.session_state.lancedb_connected):
         connect_to_lancedb()
     
     # If connected, show table browser
@@ -43,96 +42,35 @@ def lancedb_browser():
 def connect_to_lancedb():
     """Handle connection to LanceDB database."""
     st.subheader("Connect to LanceDB")
-    
-    # LanceDB can connect to a local directory or URI
-    connection_type = st.radio(
-        "Connection Type",
-        ["Local Directory", "URI Connection"],
-        horizontal=True
+    # Local directory connection
+    db_path = st.text_input(
+        "Database Path",
+        value=".lancedb",
+        help="Path to the local LanceDB database directory"
     )
     
-    if connection_type == "Local Directory":
-        # Local directory connection
-        db_path = st.text_input(
-            "Database Path",
-            value="./lancedb_data",
-            help="Path to the local LanceDB database directory"
-        )
-        
-        if st.button("Connect to Local Database"):
-            try:
-                with st.spinner("Connecting to LanceDB..."):
-                    # Create directory if it doesn't exist
-                    os.makedirs(db_path, exist_ok=True)
-                    
-                    # Connect to the database using our mock function
-                    db = connect(db_path)
-                    
-                    # Store connection in session state
-                    st.session_state.lancedb_connection = db
-                    st.session_state.lancedb_connected = True
-                    
-                    # List available tables
-                    table_names = list_lancedb_tables(db)
-                    st.session_state.lancedb_tables = table_names
-                    
-                    st.success(f"Connected to LanceDB at {db_path}")
-                    if table_names:
-                        st.info(f"Found {len(table_names)} tables: {', '.join(table_names)}")
-                    else:
-                        st.info("No tables found in the database.")
-            except Exception as e:
-                st.error(f"Error connecting to LanceDB: {str(e)}")
-    else:
-        # URI connection (e.g., S3, etc.)
-        uri = st.text_input(
-            "Database URI",
-            placeholder="s3://bucket-name/path/to/db",
-            help="URI to the LanceDB database location"
-        )
-        
-        # Additional credentials for cloud storage
-        st.subheader("Connection Credentials")
-        col1, col2 = st.columns(2)
-        with col1:
-            region = st.text_input("Region", placeholder="us-east-1")
-            access_key = st.text_input("Access Key ID")
-        with col2:
-            secret_key = st.text_input("Secret Access Key", type="password")
-        
-        if st.button("Connect to Remote Database"):
-            if not uri:
-                st.error("Database URI is required")
-            else:
-                try:
-                    with st.spinner("Connecting to LanceDB..."):
-                        # Set AWS credentials if provided
-                        if access_key and secret_key:
-                            os.environ["AWS_ACCESS_KEY_ID"] = access_key
-                            os.environ["AWS_SECRET_ACCESS_KEY"] = secret_key
-                        
-                        if region:
-                            os.environ["AWS_REGION"] = region
-                        
-                        # Connect to the database using our mock function
-                        db = connect(uri)
-                        
-                        # Store connection in session state
-                        st.session_state.lancedb_connection = db
-                        st.session_state.lancedb_connected = True
-                        
-                        # List available tables
-                        table_names = list_lancedb_tables(db)
-                        st.session_state.lancedb_tables = table_names
-                        
-                        st.success(f"Connected to LanceDB at {uri}")
-                        if table_names:
-                            st.info(f"Found {len(table_names)} tables: {', '.join(table_names)}")
-                        else:
-                            st.info("No tables found in the database.")
-                except Exception as e:
-                    st.error(f"Error connecting to LanceDB: {str(e)}")
-
+    if st.button("Connect to Local Database"):
+        try:
+            with st.spinner("Connecting to LanceDB..."):
+                # Create directory if it doesn't exist
+                #os.makedirs(db_path, exist_ok=True)
+                
+                db = connect(db_path)
+                # Store connection in session state
+                st.session_state.lancedb_connection = db
+                st.session_state.lancedb_connected = True
+                
+                # List available tables
+                table_names = list_lancedb_tables(db)
+                st.session_state.lancedb_tables = table_names
+                
+                st.success(f"Connected to LanceDB at {db_path}")
+                if table_names:
+                    st.info(f"Found {len(table_names)} tables: {', '.join(table_names)}")
+                else:
+                    st.info("No tables found in the database.")
+        except Exception as e:
+            st.error(f"Error connecting to LanceDB: {str(e)}")
 
 def list_lancedb_tables(db):
     """
@@ -145,13 +83,21 @@ def list_lancedb_tables(db):
         List of table names
     """
     try:
-        return db.table_names()
+        tables = db.table_names()
+        st.session_state.lancedb_tables = tables
+        print(tables)
+        return tables
     except Exception as e:
         st.error(f"Error listing tables: {str(e)}")
         return []
 
 
 def display_table_browser():
+    db = st.session_state.lancedb_connection
+    # Option to create a new table
+    st.subheader("Create New Table")
+    with st.expander("Create Table"):
+        create_new_table()
     """Display the browser interface for LanceDB tables."""
     st.subheader("Browse Tables")
     
@@ -164,8 +110,7 @@ def display_table_browser():
         # Refresh button to update table list
         if st.button("Refresh Tables"):
             with st.spinner("Refreshing table list..."):
-                table_names = list_lancedb_tables(st.session_state.lancedb_connection)
-                st.session_state.lancedb_tables = table_names
+                table_names = list_lancedb_tables(db)
                 st.rerun()
         
         # Display table list
@@ -179,12 +124,7 @@ def display_table_browser():
             if selected_table != st.session_state.current_table:
                 st.session_state.current_table = selected_table
                 st.rerun()
-        else:
-            st.info("No tables available. Create a table to get started.")
-            
-            # Option to create a new table
-            with st.expander("Create New Table"):
-                create_new_table()
+        
     
     with col2:
         # Table viewer panel
@@ -217,8 +157,27 @@ def create_new_table():
             else:
                 try:
                     with st.spinner(f"Creating table '{new_table_name}'..."):
-                        # Create an empty DataFrame with the specified columns
-                        sample_data = pd.DataFrame({col: [] for col in columns})
+                        # Create a DataFrame with sample data for the specified columns
+                        # Generate 5 rows of sample data
+                        sample_data = {}
+                        for col in columns:
+                            if col.lower() == 'id':
+                                # For id column, use sequential integers
+                                sample_data[col] = list(range(1, 6))
+                            elif 'embedding' in col.lower():
+                                # For embedding columns, use simple vectors
+                                sample_data[col] = [[0.1, 0.2, 0.3]] * 5
+                            elif any(type_hint in col.lower() for type_hint in ['int', 'num', 'count']):
+                                # For numeric columns, use random integers
+                                sample_data[col] = [i * 10 for i in range(1, 6)]
+                            elif any(type_hint in col.lower() for type_hint in ['float', 'decimal', 'price']):
+                                # For float columns, use decimals
+                                sample_data[col] = [i * 10.5 for i in range(1, 6)]
+                            else:
+                                # For other columns, use text
+                                sample_data[col] = [f"Sample {col} {i}" for i in range(1, 6)]
+                        
+                        sample_data = pd.DataFrame(sample_data)
                         
                         # Create the table
                         db = st.session_state.lancedb_connection
@@ -245,7 +204,11 @@ def display_table_details(table_name):
     try:
         # Get table from connection
         db = st.session_state.lancedb_connection
-        table = db.open_table(table_name)
+        try:
+            table = db.open_table(table_name)
+        except Exception as e:
+            st.error(f"Error opening table: {str(e)}")
+            return
         
         # Display table information
         st.subheader(f"Table: {table_name}")
@@ -261,28 +224,7 @@ def display_table_details(table_name):
                 limit = st.slider("Number of rows to preview", 5, 100, 10)
             with col2:
                 st.write("Actions:")
-                if st.button("Delete Selected", key="delete_btn"):
-                    if "selected_rows" in st.session_state and st.session_state.selected_rows:
-                        with st.spinner("Deleting selected rows..."):
-                            try:
-                                # Get indices of selected rows
-                                indices = sorted(list(st.session_state.selected_rows.keys()), key=int)
-                                
-                                # Delete rows
-                                if table.delete_rows(indices):
-                                    st.success(f"Successfully deleted {len(indices)} row(s)")
-                                    
-                                    # Clear selection
-                                    st.session_state.selected_rows = {}
-                                    
-                                    # Rerun to update UI
-                                    st.rerun()
-                                else:
-                                    st.error("Failed to delete rows")
-                            except Exception as e:
-                                st.error(f"Error deleting rows: {str(e)}")
-                    else:
-                        st.warning("No rows selected. Please select rows to delete.")
+                # Delete button will be moved after loading preview_df
             
             # Get data preview
             with st.spinner("Loading data preview..."):
@@ -301,24 +243,69 @@ def display_table_details(table_name):
                 edited_df = preview_df.copy()
                 
                 # Display the dataframe with row selection
+                # Add a selection column to the dataframe
+                # Create a checkbox column for selection
+                edited_df = edited_df.copy()
+                edited_df.insert(0, "Select", False)
+                
                 selection = st.data_editor(
                     edited_df,
                     use_container_width=True,
-                    disabled=edited_df.columns.tolist(),  # Disable editing of all columns
+                    disabled=edited_df.columns.tolist()[1:],  # Disable editing of all columns except Select
                     hide_index=False,
-                    column_config={
-                        "_index": st.column_config.Column(
-                            "Select",
-                            help="Select rows to delete",
-                            required=True,
-                            width="small",
-                        )
-                    },
                     key="table_data_editor"
                 )
                 
                 # Store selection in session state
-                st.session_state.selected_rows = selection.get("edited_rows", {})
+                # Get the indices of rows where Select is True
+                selected_indices = {}
+                for i, row in enumerate(selection["Select"]):
+                    if row:
+                        selected_indices[str(i)] = True
+                
+                st.session_state.selected_rows = selected_indices
+                
+                # Now add the delete button after preview_df is defined
+                if st.button("Delete Selected", key="delete_btn"):
+                    if "selected_rows" in st.session_state and st.session_state.selected_rows:
+                        with st.spinner("Deleting selected rows..."):
+                            try:
+                                # Get indices of selected rows
+                                indices = sorted(list(st.session_state.selected_rows.keys()), key=int)
+                                
+                                # Delete rows using the proper LanceDB API
+                                # LanceDB doesn't have a delete_rows method, but it has a delete method
+                                # that takes a filter condition
+                                
+                                # Get the id values of the selected rows
+                                # The indices are now the row numbers in the preview dataframe
+                                id_values = [preview_df.iloc[int(idx)]['id'] for idx in indices if int(idx) < len(preview_df)]
+                                
+                                if id_values:
+                                    # Create a filter condition for the ids
+                                    # Use proper SQL syntax for the WHERE clause
+                                    if len(id_values) == 1:
+                                        # For a single value, use equality
+                                        filter_condition = f"id = {id_values[0]}"
+                                    else:
+                                        # For multiple values, use IN with parentheses
+                                        filter_condition = f"id IN ({','.join(map(str, id_values))})"
+                                    
+                                    # Delete the rows
+                                    table.delete(filter_condition)
+                                    st.success(f"Successfully deleted {len(indices)} row(s)")
+                                    
+                                    # Clear selection
+                                    st.session_state.selected_rows = {}
+                                    
+                                    # Rerun to update UI
+                                    st.rerun()
+                                else:
+                                    st.error("Failed to delete rows")
+                            except Exception as e:
+                                st.error(f"Error deleting rows: {str(e)}")
+                    else:
+                        st.warning("No rows selected. Please select rows to delete.")
         
         # Schema tab
         with tab2:
