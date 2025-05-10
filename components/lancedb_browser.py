@@ -1,13 +1,14 @@
 import streamlit as st
 import pandas as pd
 import os
+import lancedb
 import json
 from pathlib import Path
 import lancedb
 
-#  connection function to replace lancedb.connect
+# connection function to replace lancedb.connect
 def connect(uri):
-    """Mock connect function that returns a MockLanceDB instance."""
+    """Connect function that returns a LanceDB instance."""
     db = lancedb.connect(uri)
     return db
 
@@ -227,8 +228,8 @@ def display_table_details(table_name):
             
             # Get data preview
             with st.spinner("Loading data preview..."):
-                # Use the limit from the slider to limit the number of rows
-                preview_df = table.to_pandas().head(limit)
+                p_df = table.to_pandas()
+                preview_df = p_df.head(limit)
                 
                 # Initialize selected_rows if not present
                 if "selected_rows" not in st.session_state:
