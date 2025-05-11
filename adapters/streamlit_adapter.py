@@ -9,6 +9,7 @@ import pandas as pd
 import os
 from services.lancedb_service import LanceDBService
 from utils.env_utils import is_running_in_docker, get_default_db_path
+from components.semantic_search import run_semantic_search_interface
 
 
 class StreamlitLanceDBAdapter:
@@ -18,8 +19,14 @@ class StreamlitLanceDBAdapter:
     """
     
     def __init__(self):
-        self.service = LanceDBService()
         self._initialize_session_state()
+        
+        # Create or retrieve the service from session state
+        if 'lancedb_service' not in st.session_state:
+            st.session_state.lancedb_service = LanceDBService()
+        
+        # Use the service from session state
+        self.service = st.session_state.lancedb_service
     
     def _initialize_session_state(self):
         """Initialize the Streamlit session state variables."""
@@ -84,6 +91,12 @@ class StreamlitLanceDBAdapter:
             st.warning("Please connect to a LanceDB database first.")
             return
         
+        # Verify connection is still valid before proceeding
+        if not self.service.ensure_connection():
+            st.session_state.lancedb_connected = False
+            st.error("Database connection was lost. Please reconnect.")
+            return
+            
         try:
             # Get list of tables
             tables = st.session_state.lancedb_tables
@@ -110,6 +123,12 @@ class StreamlitLanceDBAdapter:
                 
                 if st.button("Load Data"):
                     with st.spinner(f"Loading data from '{selected_table}'..."):
+                        # Double check connection before query
+                        if not self.service.ensure_connection():
+                            st.session_state.lancedb_connected = False
+                            st.error("Database connection was lost. Please reconnect.")
+                            return
+                            
                         # Query the table and store in session state
                         result_df = self.service.query_table(
                             selected_table, 
@@ -119,6 +138,10 @@ class StreamlitLanceDBAdapter:
                         
                         # Display statistics and preview
                         st.success(f"Loaded {len(result_df)} rows from '{selected_table}'")
+                
+                # Display data if available
+                if st.session_state.data is not None:
+                    st.dataframe(st.session_state.data)
                         
         except Exception as e:
             st.error(f"Error browsing tables: {str(e)}")
@@ -127,6 +150,12 @@ class StreamlitLanceDBAdapter:
         """Display semantic search interface."""
         if not st.session_state.lancedb_connected:
             st.warning("Please connect to a LanceDB database first.")
+            return
+            
+        # Verify connection is still valid
+        if not self.service.ensure_connection():
+            st.session_state.lancedb_connected = False
+            st.error("Database connection was lost. Please reconnect.")
             return
             
         try:
@@ -146,8 +175,10 @@ class StreamlitLanceDBAdapter:
             )
             
             if selected_table:
-                st.info("Semantic search functionality would be implemented here, connecting to the LanceDBService.")
-                st.text("This would display embedding generation, vector search, etc.")
+                # Get the database connection from the service
+                db_connection = self.service.get_connection()
+                # Call the semantic search interface with the database connection
+                run_semantic_search_interface(db_connection)
                 
         except Exception as e:
             st.error(f"Error in semantic search: {str(e)}")
@@ -156,6 +187,12 @@ class StreamlitLanceDBAdapter:
         """Display interface for creating new tables."""
         if not st.session_state.lancedb_connected:
             st.warning("Please connect to a LanceDB database first.")
+            return
+            
+        # Verify connection is still valid
+        if not self.service.ensure_connection():
+            st.session_state.lancedb_connected = False
+            st.error("Database connection was lost. Please reconnect.")
             return
             
         try:

@@ -19,9 +19,13 @@ def run_semantic_search_interface(db):
     """Interface for semantic search using vector embeddings."""
     st.subheader("🔍 Semantic Search (Vector Search with Embeddings)")
     
+    # Always display the search phrase input first to ensure it's visible
+    phrase = st.text_input("Enter your search phrase")
+    
     tables = get_embedding_tables(db)
     if not tables:
-        st.info("No tables with detected embedding/vector columns were found.")
+        st.warning("No tables with detected embedding/vector columns were found. Please create tables with vector columns first.")
+        st.info("You need at least one table with an embedding or vector column to perform semantic search.")
         return
 
     # User select table and embedding column
@@ -37,7 +41,6 @@ def run_semantic_search_interface(db):
     ]
     embed_model = st.selectbox("Embedding Model", available_models)
     
-    phrase = st.text_input("Enter your search phrase")
     top_k = st.slider("Number of results", min_value=3, max_value=50, value=10)
 
     if st.button("Run Semantic Search") and phrase:
