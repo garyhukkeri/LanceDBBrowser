@@ -390,10 +390,36 @@ class StreamlitLanceDBAdapter:
                     except Exception as e:
                         self._handle_error(e)
     
+    def _display_footer(self):
+        """Display the application footer with copyright and links."""
+        st.markdown("---")  # Add a horizontal line
+        
+        # Create three columns for the footer
+        col1, col2, col3 = st.columns([1, 2, 1])
+        
+        with col1:
+            st.markdown("© 2024 LanceDB Browser")
+        
+        with col2:
+            st.markdown(
+                "<div style='text-align: center;'>"
+                "<a href='https://github.com/garyhukkeri/LanceDBBrowser' target='_blank'>"
+                "View on GitHub</a> | "
+                "<a href='https://lancedb.com' target='_blank'>LanceDB</a>"
+                "</div>",
+                unsafe_allow_html=True
+            )
+        
+        with col3:
+            st.markdown(
+                "<div style='text-align: right;'>"
+                "Made with ❤️ by the community"
+                "</div>",
+                unsafe_allow_html=True
+            )
+    
     def run_browser_interface(self):
         """Run the main browser interface."""
-        st.title("LanceDB Browser")
-        
         # Handle connection first
         self.handle_connection()
         
@@ -413,3 +439,6 @@ class StreamlitLanceDBAdapter:
                 
             with tab3:
                 self.display_create_table()
+        
+        # Always display the footer
+        self._display_footer()
