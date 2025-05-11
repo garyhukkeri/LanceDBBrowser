@@ -21,15 +21,3 @@ st.caption("A mini workbench for browsing and exploring LanceDB tables")
 # Initialize and run the adapter
 adapter = StreamlitLanceDBAdapter()
 adapter.run_browser_interface()
-
-# # If data has been loaded from a LanceDB query
-# if st.session_state.data is not None:
-#     st.header("Current Dataset")
-    # df = st.session_state.data
-    
-    # # Show data stats
-    # st.write(f"Rows: {len(df)}, Columns: {len(df.columns)}")
-    
-    # # Show data preview
-    # with st.expander("Data Preview", expanded=True):
-    #     st.dataframe(df.head(10), use_container_width=True)

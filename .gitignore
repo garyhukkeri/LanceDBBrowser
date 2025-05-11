@@ -49,3 +49,5 @@ lancedb/
 
 test_run*
 .env
+cursor_refactor_plan.md
+archive/
