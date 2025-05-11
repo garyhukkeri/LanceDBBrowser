@@ -260,12 +260,14 @@ class TableOperationsService:
         # Add embeddings to the table
         df[embedding_column] = embeddings
         
-        # Replace the existing table with the new version including embeddings
+        # Delete the existing table first
+        self.db_service.delete_table(table_name)
+        
+        # Create new table with embeddings
         self.db_service.create_table(
             table_name=table_name,
             data=df,
-            vector_column=embedding_column,
-            replace=True
+            vector_column=embedding_column
         )
         
         return {

@@ -193,7 +193,7 @@ class LanceDBService:
 
     @retry_operation()
     def create_table(self, table_name: str, data: pd.DataFrame, 
-                    vector_column: Optional[str] = None, replace: bool = False) -> bool:
+                    vector_column: Optional[str] = None) -> bool:
         """
         Create a new table in the database.
         
@@ -201,7 +201,6 @@ class LanceDBService:
             table_name: Name for the new table
             data: DataFrame with the data
             vector_column: Optional name of vector/embedding column
-            replace: Whether to replace existing table
             
         Returns:
             bool: True if table created successfully
@@ -214,9 +213,6 @@ class LanceDBService:
             raise ConnectionError("Not connected to database")
             
         try:
-            if replace:
-                return self.replace_table(table_name, data, vector_column)
-                
             logger.info(f"Creating table '{table_name}' with {len(data)} rows")
             self._connection.create_table(table_name, data=data)
             return True
