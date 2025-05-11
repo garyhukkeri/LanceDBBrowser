@@ -45,7 +45,8 @@ class StreamlitLanceDBAdapter:
             embedding_service=self.embedding_service
         )
         self.table_ops = TableOperationsService(
-            db_service=self.db_service
+            db_service=self.db_service,
+            embedding_service=self.embedding_service
         )
         
     def _initialize_session_state(self):
@@ -175,7 +176,12 @@ class StreamlitLanceDBAdapter:
         try:
             st.subheader(f"Table: {table_name}")
             
-            tab1, tab2, tab3 = st.tabs(["Preview Data", "Table Schema", "Execute Query"])
+            tab1, tab2, tab3, tab4 = st.tabs([
+                "Preview Data", 
+                "Table Schema", 
+                "Execute Query",
+                "Create Embeddings"
+            ])
             
             with tab1:
                 self._display_table_preview(table_name)
@@ -185,6 +191,9 @@ class StreamlitLanceDBAdapter:
                 
             with tab3:
                 self._display_query_interface(table_name)
+                
+            with tab4:
+                self._display_embedding_interface(table_name)
                 
         except Exception as e:
             self._handle_error(e)
@@ -241,6 +250,78 @@ class StreamlitLanceDBAdapter:
         try:
             # Implementation of query execution
             pass
+        except Exception as e:
+            self._handle_error(e)
+    
+    def _display_embedding_interface(self, table_name: str):
+        """Display interface for creating embeddings from selected fields."""
+        st.write("Create embeddings by combining selected fields")
+        
+        try:
+            # Get available models
+            models = self.embedding_service.get_available_models()
+            model_name = st.selectbox(
+                "Select embedding model",
+                list(models.keys()),
+                format_func=lambda x: f"{x} ({models[x]['description']})",
+                key=f"model_select_{table_name}"
+            )
+            
+            # Get non-vector columns for selection
+            result = self.table_ops.get_non_vector_columns(table_name)
+            if not result['success']:
+                st.error("Failed to get table columns")
+                return
+                
+            columns = result['data']
+            if not columns:
+                st.info("No text columns found in this table")
+                return
+            
+            # Let user select fields to combine
+            selected_fields = st.multiselect(
+                "Select fields to combine for embedding",
+                columns,
+                key=f"field_select_{table_name}"
+            )
+            
+            # Let user specify embedding column name
+            embedding_column = st.text_input(
+                "Embedding column name",
+                value="embedding",
+                help="Name of the column where embeddings will be stored",
+                key=f"embedding_col_{table_name}"
+            )
+            
+            # Single button for creating embeddings
+            if st.button("Create Embeddings", key=f"create_embeddings_{table_name}"):
+                if not selected_fields:
+                    st.warning("Please select at least one field for embedding")
+                else:
+                    with st.spinner("Generating embeddings..."):
+                        try:
+                            result = self.table_ops.create_embeddings(
+                                table_name=table_name,
+                                selected_fields=selected_fields,
+                                embedding_column=embedding_column,
+                                model_name=model_name
+                            )
+                            
+                            if result['success']:
+                                data = result['data']
+                                st.success(
+                                    f"Created {data['num_embeddings']} embeddings "
+                                    f"(dimension: {data['embedding_dimension']}) "
+                                    f"in column '{data['embedding_column']}'"
+                                )
+                                # Show details in an expander
+                                with st.expander("Details"):
+                                    st.json(data)
+                            else:
+                                st.error("Failed to create embeddings")
+                        except Exception as e:
+                            self._handle_error(e)
+                
         except Exception as e:
             self._handle_error(e)
     

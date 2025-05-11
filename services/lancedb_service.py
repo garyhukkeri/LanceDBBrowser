@@ -135,8 +135,65 @@ class LanceDBService:
             raise DatabaseError(f"Failed to list tables: {str(e)}")
 
     @retry_operation()
+    def delete_table(self, table_name: str) -> bool:
+        """
+        Delete a table from the database.
+        
+        Args:
+            table_name: Name of the table to delete
+            
+        Returns:
+            bool: True if table was deleted
+            
+        Raises:
+            ConnectionError: If not connected
+            TableOperationError: If deletion fails
+        """
+        if not self.ensure_connection():
+            raise ConnectionError("Not connected to database")
+            
+        try:
+            if table_name in self.list_tables():
+                self._connection.drop_table(table_name)
+            return True
+        except Exception as e:
+            raise TableOperationError(f"Failed to delete table: {str(e)}")
+
+    @retry_operation()
+    def replace_table(self, table_name: str, data: pd.DataFrame, 
+                     vector_column: Optional[str] = None) -> bool:
+        """
+        Replace an existing table with new data.
+        
+        Args:
+            table_name: Name of the table
+            data: DataFrame with the new data
+            vector_column: Optional name of vector/embedding column
+            
+        Returns:
+            bool: True if table was replaced successfully
+            
+        Raises:
+            ConnectionError: If not connected
+            TableOperationError: If operation fails
+        """
+        if not self.ensure_connection():
+            raise ConnectionError("Not connected to database")
+            
+        try:
+            # Delete existing table if it exists
+            self.delete_table(table_name)
+            
+            # Create new table
+            logger.info(f"Creating replacement table '{table_name}' with {len(data)} rows")
+            self._connection.create_table(table_name, data=data)
+            return True
+        except Exception as e:
+            raise TableOperationError(f"Failed to replace table: {str(e)}")
+
+    @retry_operation()
     def create_table(self, table_name: str, data: pd.DataFrame, 
-                    vector_column: Optional[str] = None) -> bool:
+                    vector_column: Optional[str] = None, replace: bool = False) -> bool:
         """
         Create a new table in the database.
         
@@ -144,6 +201,7 @@ class LanceDBService:
             table_name: Name for the new table
             data: DataFrame with the data
             vector_column: Optional name of vector/embedding column
+            replace: Whether to replace existing table
             
         Returns:
             bool: True if table created successfully
@@ -156,6 +214,9 @@ class LanceDBService:
             raise ConnectionError("Not connected to database")
             
         try:
+            if replace:
+                return self.replace_table(table_name, data, vector_column)
+                
             logger.info(f"Creating table '{table_name}' with {len(data)} rows")
             self._connection.create_table(table_name, data=data)
             return True

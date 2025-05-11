@@ -6,6 +6,7 @@ This module provides table operation functionality using the LanceDB service.
 from typing import List, Dict, Any, Optional, Union, IO
 import pandas as pd
 from services.lancedb_service import LanceDBService
+from services.embedding_service import EmbeddingService
 from utils.error_utils import with_error_handling, ValidationError, validate_table_name
 import logging
 
@@ -19,8 +20,9 @@ class TableOperationsService:
     Uses LanceDBService for all database interactions.
     """
     
-    def __init__(self, db_service: LanceDBService):
+    def __init__(self, db_service: LanceDBService, embedding_service: Optional[EmbeddingService] = None):
         self.db_service = db_service
+        self.embedding_service = embedding_service
     
     @with_error_handling()
     def list_tables(self) -> List[str]:
@@ -208,4 +210,68 @@ class TableOperationsService:
         df = pd.DataFrame(sample_data)
         
         # Create the table
-        return self.create_table(table_name, df) 
+        return self.create_table(table_name, df)
+    
+    @with_error_handling()
+    def create_embeddings(self, table_name: str, selected_fields: List[str], 
+                         embedding_column: str = 'embedding',
+                         model_name: str = 'all-MiniLM-L6-v2') -> Dict[str, Any]:
+        """
+        Create embeddings from selected fields and add them to the table.
+        
+        Args:
+            table_name: Name of the table
+            selected_fields: List of fields to combine for embedding
+            embedding_column: Name of the column to store embeddings
+            model_name: Name of the model to use for embeddings
+            
+        Returns:
+            Dictionary with operation results
+            
+        Raises:
+            ValidationError: If validation fails
+            ValueError: If embedding service is not available
+        """
+        if not self.embedding_service:
+            raise ValueError("Embedding service not initialized")
+            
+        validate_table_name(table_name)
+        
+        # Get the table data
+        table = self.db_service.get_connection()[table_name]
+        df = pd.DataFrame(table.to_pandas())
+        
+        if not all(field in df.columns for field in selected_fields):
+            missing = [f for f in selected_fields if f not in df.columns]
+            raise ValidationError(
+                "Some selected fields not found in table",
+                {'missing_fields': missing}
+            )
+        
+        # Combine selected fields into text for embedding
+        texts = []
+        for _, row in df.iterrows():
+            combined_text = " ".join(str(row[field]) for field in selected_fields)
+            texts.append(combined_text)
+        
+        # Generate embeddings
+        embeddings = self.embedding_service.generate_batch_embeddings(texts, model_name)
+        
+        # Add embeddings to the table
+        df[embedding_column] = embeddings
+        
+        # Replace the existing table with the new version including embeddings
+        self.db_service.create_table(
+            table_name=table_name,
+            data=df,
+            vector_column=embedding_column,
+            replace=True
+        )
+        
+        return {
+            'table_name': table_name,
+            'embedding_column': embedding_column,
+            'num_embeddings': len(embeddings),
+            'embedding_dimension': len(embeddings[0]) if embeddings else 0,
+            'source_fields': selected_fields
+        } 
