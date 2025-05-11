@@ -6,9 +6,10 @@ services:
     ports:
       - "8501:8501"
     volumes:
-      - ./lancedb_data:/app/lancedb_data
+      - ${HOST_DB_PATH:-./lancedb_data}:/app/lancedb_data
     environment:
       - STREAMLIT_SERVER_PORT=8501
       - STREAMLIT_SERVER_ADDRESS=0.0.0.0
       - STREAMLIT_SERVER_ENABLE_CORS=true
       - STREAMLIT_SERVER_ENABLE_XSRF_PROTECTION=false
+    restart: unless-stopped
