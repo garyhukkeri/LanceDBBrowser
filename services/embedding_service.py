@@ -41,6 +41,10 @@ class EmbeddingService:
         'all-mpnet-base-v2': {
             'dimension': 768,
             'description': 'Higher quality, but slower and larger'
+        },
+        'BAAI/bge-m3': {
+            'dimension': 1024,
+            'description': 'PG Compatible'
         }
     }
     

@@ -207,7 +207,81 @@ class StreamlitLanceDBAdapter:
             if result['success']:
                 data = result['data']
                 st.write(f"Showing {data['row_count']} rows")
-                st.dataframe(data['data'])
+                
+                # Get the data without adding a selection column
+                df = data['data'].copy()
+                
+                # Display the table with selection column
+                edited_df = st.data_editor(
+                    df,
+                    use_container_width=True,
+                    num_rows="dynamic",
+                    hide_index=True,
+                    key=f"table_{table_name}"
+                )
+                
+                # Create a container for status messages
+                status_container = st.container()
+                
+                # Get selected rows using Streamlit's built-in selection
+                selected_rows = []
+                if f"table_{table_name}" in st.session_state and "selected_rows" in st.session_state[f"table_{table_name}"]:
+                    selected_rows = edited_df[edited_df.index.isin(st.session_state[f"table_{table_name}"]["selected_rows"])]
+                    
+                    if len(selected_rows) > 0:
+                        try:
+                            # Show selected rows in an expander
+                            with st.expander("Selected Rows", expanded=True):
+                                st.write("You have selected the following rows:")
+                                st.dataframe(selected_rows)
+                            
+                            # Create filter conditions for selected rows
+                            filter_conditions = []
+                            for _, row in selected_rows.iterrows():
+                                row_dict = row.to_dict()
+                                filter_conditions.append(row_dict)
+                            
+                            # Show deletion progress in an expander
+                            with st.expander("Deletion Progress", expanded=True):
+                                progress_bar = st.progress(0)
+                                status_text = st.empty()
+                                
+                                # Delete each selected row
+                                total_deleted = 0
+                                for i, condition in enumerate(filter_conditions):
+                                    status_text.text(f"Deleting row {i+1} of {len(filter_conditions)}...")
+                                    
+                                    # Show the condition being used
+                                    st.write("Filter condition:", condition)
+                                    
+                                    result = self.table_ops.delete_rows(table_name, condition)
+                                    if result['success']:
+                                        deleted = result['data']['rows_deleted']
+                                        total_deleted += deleted
+                                        if deleted > 0:
+                                            st.write(f"✓ Row {i+1} deleted successfully")
+                                        else:
+                                            st.write(f"⚠ Row {i+1} not found or already deleted")
+                                            if 'warning' in result['data']:
+                                                st.write(f"Warning: {result['data']['warning']}")
+                                    else:
+                                        st.error(f"✗ Failed to delete row {i+1}: {result.get('error', 'Unknown error')}")
+                                    
+                                    # Update progress
+                                    progress = (i + 1) / len(filter_conditions)
+                                    progress_bar.progress(progress)
+                                
+                                status_text.text("Deletion complete!")
+                            
+                            if total_deleted > 0:
+                                status_container.success(f"Successfully deleted {total_deleted} rows.")
+                                st.rerun()  # Refresh the view
+                            else:
+                                status_container.warning("No rows were deleted. The selected rows may not exist in the table.")
+                            
+                        except Exception as e:
+                            status_container.error(f"Error during deletion: {str(e)}")
+                            self._handle_error(e)
             else:
                 self._handle_error(AppError(result['error']['message']))
     

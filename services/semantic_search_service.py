@@ -130,7 +130,7 @@ class SemanticSearchService:
             exclude_columns = []
             
         # Add default columns to exclude
-        exclude_columns.extend(['_distance'])
+        #exclude_columns.extend(['_distance'])
         
         # Filter columns
         display_columns = [col for col in results.columns if col not in exclude_columns]

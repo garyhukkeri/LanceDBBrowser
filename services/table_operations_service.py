@@ -276,4 +276,103 @@ class TableOperationsService:
             'num_embeddings': len(embeddings),
             'embedding_dimension': len(embeddings[0]) if embeddings else 0,
             'source_fields': selected_fields
+        }
+
+    @with_error_handling()
+    def delete_rows(self, table_name: str, filter_condition: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Delete rows from a table based on a filter condition.
+        
+        Args:
+            table_name: Name of the table
+            filter_condition: Dictionary of column-value pairs to filter by
+            
+        Returns:
+            Dictionary with operation results
+            
+        Raises:
+            ValidationError: If validation fails
+        """
+        validate_table_name(table_name)
+        
+        # Get the table data
+        table = self.db_service.get_connection()[table_name]
+        df = pd.DataFrame(table.to_pandas())
+        initial_row_count = len(df)
+        
+        # Get schema to identify vector columns
+        schema = self.get_table_schema(table_name)
+        if not isinstance(schema, dict) or 'data' not in schema:
+            raise ValidationError("Failed to get table schema")
+            
+        vector_columns = [
+            name for name, info in schema['data'].items()
+            if info.get('is_vector', False)
+        ]
+        
+        # Remove vector columns from filter condition
+        for col in vector_columns:
+            filter_condition.pop(col, None)
+        
+        # Create filter mask
+        mask = pd.Series(True, index=df.index)
+        for column, value in filter_condition.items():
+            if column not in df.columns:
+                raise ValidationError(
+                    f"Column '{column}' not found in table",
+                    {'available_columns': list(df.columns)}
+                )
+            
+            # Convert value to match column type
+            try:
+                col_type = df[column].dtype
+                if pd.api.types.is_numeric_dtype(col_type):
+                    value = float(value) if isinstance(value, (int, float)) else value
+                elif pd.api.types.is_bool_dtype(col_type):
+                    value = bool(value)
+                elif pd.api.types.is_datetime64_dtype(col_type):
+                    value = pd.to_datetime(value)
+                
+                # Compare values
+                if pd.api.types.is_numeric_dtype(col_type):
+                    mask &= (df[column].astype(float) == float(value))
+                else:
+                    mask &= (df[column].astype(str) == str(value))
+                
+            except Exception as e:
+                raise ValidationError(f"Error comparing column {column}: {str(e)}")
+        
+        # Count rows to be deleted
+        rows_to_delete = mask.sum()
+        
+        if rows_to_delete == 0:
+            return {
+                'table_name': table_name,
+                'rows_deleted': 0,
+                'remaining_rows': initial_row_count,
+                'warning': 'No rows matched the filter condition'
+            }
+        
+        # Filter out rows to keep
+        df = df[~mask]
+        
+        # Verify we actually removed rows
+        if len(df) >= initial_row_count:
+            return {
+                'table_name': table_name,
+                'rows_deleted': 0,
+                'remaining_rows': initial_row_count,
+                'error': 'No rows were removed after filtering'
+            }
+        
+        # Replace the table with filtered data
+        try:
+            self.db_service.replace_table(table_name, df)
+        except Exception as e:
+            raise
+        
+        return {
+            'table_name': table_name,
+            'rows_deleted': initial_row_count - len(df),
+            'remaining_rows': len(df)
         } 
