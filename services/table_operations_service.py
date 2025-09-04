@@ -375,4 +375,54 @@ class TableOperationsService:
             'table_name': table_name,
             'rows_deleted': initial_row_count - len(df),
             'remaining_rows': len(df)
-        } 
+        }
+
+    @with_error_handling()
+    def get_table_data_paginated(self, table_name: str, page: int = 1, 
+                               page_size: int = 50) -> Dict[str, Any]:
+        """
+        Get paginated table data.
+        
+        Args:
+            table_name: Table to query
+            page: Page number (1-based)
+            page_size: Number of rows per page
+            
+        Returns:
+            Dictionary with paginated data and metadata
+        """
+        validate_table_name(table_name)
+        
+        offset = (page - 1) * page_size
+        df = self.db_service.query_table_paginated(table_name, offset, page_size)
+        
+        # Get total rows and handle the wrapped response
+        total_rows_result = self.get_table_row_count(table_name)
+        if isinstance(total_rows_result, dict) and 'data' in total_rows_result:
+            total_rows = total_rows_result['data']
+        else:
+            total_rows = total_rows_result
+        
+        return {
+            'data': df,
+            'current_page': page,
+            'page_size': page_size,
+            'total_rows': total_rows,
+            'total_pages': (total_rows + page_size - 1) // page_size,
+            'has_next': page * page_size < total_rows,
+            'has_previous': page > 1
+        }
+
+    @with_error_handling()
+    def get_table_row_count(self, table_name: str) -> int:
+        """
+        Get total row count for a table.
+        
+        Args:
+            table_name: Table to count
+            
+        Returns:
+            Total number of rows
+        """
+        validate_table_name(table_name)
+        return self.db_service.count_table_rows(table_name) 

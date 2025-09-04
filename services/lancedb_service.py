@@ -245,6 +245,57 @@ class LanceDBService:
             raise TableOperationError(f"Failed to query table: {str(e)}")
 
     @retry_operation()
+    def query_table_paginated(self, table_name: str, offset: int = 0, 
+                             limit: int = 50) -> pd.DataFrame:
+        """
+        Query paginated data from a table using LIMIT/OFFSET.
+        
+        Args:
+            table_name: Table to query
+            offset: Number of rows to skip
+            limit: Maximum number of rows to return
+            
+        Returns:
+            DataFrame with query results
+            
+        Raises:
+            ConnectionError: If not connected
+            TableOperationError: If query fails
+        """
+        if not self.ensure_connection():
+            raise ConnectionError("Not connected to database")
+            
+        try:
+            table = self._connection[table_name]
+            return table.search().limit(limit).offset(offset).to_pandas()
+        except Exception as e:
+            raise TableOperationError(f"Failed to query table: {str(e)}")
+
+    @retry_operation()
+    def count_table_rows(self, table_name: str) -> int:
+        """
+        Get total row count efficiently.
+        
+        Args:
+            table_name: Table to count
+            
+        Returns:
+            Total number of rows
+            
+        Raises:
+            ConnectionError: If not connected
+            TableOperationError: If count fails
+        """
+        if not self.ensure_connection():
+            raise ConnectionError("Not connected to database")
+            
+        try:
+            table = self._connection[table_name]
+            return table.count_rows()
+        except Exception as e:
+            raise TableOperationError(f"Failed to count table rows: {str(e)}")
+
+    @retry_operation()
     def semantic_search(self, table_name: str, query_vector: List[float],
                        vector_column: str, limit: int = 10) -> pd.DataFrame:
         """

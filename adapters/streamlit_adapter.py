@@ -176,8 +176,9 @@ class StreamlitLanceDBAdapter:
         try:
             st.subheader(f"Table: {table_name}")
             
-            tab1, tab2, tab3, tab4 = st.tabs([
+            tab1, tab2, tab3, tab4, tab5 = st.tabs([
                 "Preview Data", 
+                "Browse Table",
                 "Table Schema", 
                 "Execute Query",
                 "Create Embeddings"
@@ -187,12 +188,15 @@ class StreamlitLanceDBAdapter:
                 self._display_table_preview(table_name)
                 
             with tab2:
-                self._display_table_schema(table_name)
+                self._display_browse_table(table_name)
                 
             with tab3:
-                self._display_query_interface(table_name)
+                self._display_table_schema(table_name)
                 
             with tab4:
+                self._display_query_interface(table_name)
+                
+            with tab5:
                 self._display_embedding_interface(table_name)
                 
         except Exception as e:
@@ -284,6 +288,69 @@ class StreamlitLanceDBAdapter:
                             self._handle_error(e)
             else:
                 self._handle_error(AppError(result['error']['message']))
+    
+    def _display_browse_table(self, table_name: str):
+        """Display paginated table browser."""
+        
+        # Initialize session state for this table
+        page_key = f"browse_{table_name}_page"
+        size_key = f"browse_{table_name}_page_size"
+        
+        if page_key not in st.session_state:
+            st.session_state[page_key] = 1
+        if size_key not in st.session_state:
+            st.session_state[size_key] = 50
+        
+        # Page size selector
+        page_size = st.selectbox(
+            "Rows per page",
+            [25, 50, 100],
+            index=1,  # Default to 50
+            key=size_key
+        )
+        
+        # Reset to page 1 if page size changes
+        if st.session_state[size_key] != page_size:
+            st.session_state[page_key] = 1
+            st.session_state[size_key] = page_size
+        
+        current_page = st.session_state[page_key]
+        
+        # Get paginated data
+        with st.spinner("Loading data..."):
+            result = self.table_ops.get_table_data_paginated(
+                table_name, current_page, page_size
+            )
+            
+            if result['success']:
+                data = result['data']
+                
+                # Display pagination info
+                st.write(f"Showing {(current_page-1)*page_size + 1}-"
+                        f"{min(current_page*page_size, data['total_rows'])} "
+                        f"of {data['total_rows']} rows")
+                
+                # Display data
+                st.dataframe(data['data'], use_container_width=True, hide_index=True)
+                
+                # Navigation controls
+                col1, col2, col3 = st.columns([1, 2, 1])
+                
+                with col1:
+                    if data['has_previous'] and st.button("◀ Previous"):
+                        st.session_state[page_key] -= 1
+                        st.rerun()
+                
+                with col3:
+                    if data['has_next'] and st.button("Next ▶"):
+                        st.session_state[page_key] += 1
+                        st.rerun()
+                
+                with col2:
+                    st.write(f"Page {current_page} of {data['total_pages']}")
+            
+            else:
+                st.error(f"Failed to load data: {result['error']['message']}")
     
     def _display_table_schema(self, table_name: str):
         """Display table schema information."""
